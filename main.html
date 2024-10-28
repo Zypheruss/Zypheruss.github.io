@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anonymous Goal Reporting</title>
+    <title>Anonymous Goal Reporting with Firebase</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; }
         #goal-form, #password-section { margin-top: 20px; }
@@ -12,6 +12,9 @@
         .success { color: green; }
         .fail { color: red; }
     </style>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js"></script>
 </head>
 <body>
     <h1>Anonymous Goal Reporting</h1>
@@ -27,7 +30,6 @@
     <div id="reporting-section">
         <h2>Weekly Goals</h2>
         <div id="goals">
-            <!-- Example goals; update to fit your group's goals -->
             <div class="goal-status" id="goal1">Goal 1: Workout 3 times a week</div>
             <div class="goal-status" id="goal2">Goal 2: No sugary snacks</div>
         </div>
@@ -46,10 +48,25 @@
     </div>
 
     <script>
-        // Set a simple passcode (insecure for simplicity)
+        // Firebase configuration (replace with your actual config)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCXH3CI4YN4fRDH1Wcp_PQQCGBvpp8Dep8",
+            authDomain: "goal-storing.firebaseapp.com",
+            projectId: "goal-storing",
+            storageBucket: "goal-storing.appspot.com",
+            messagingSenderId: "1041018123354",
+            appId: "1:1041018123354:web:497f0baf04deb124ccd463",
+            measurementId: "G-1FPM1DV7KH"
+        };
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore(app);
+
+        // Set a simple passcode (for simplicity, hardcoded)
         const passcode = "sharedcode";
 
-        // Function to check the passcode and display the reporting section
+        // Check if the password is correct, then load data
         function checkPassword() {
             const inputPass = document.getElementById("password").value;
             if (inputPass === passcode) {
@@ -61,54 +78,37 @@
             }
         }
 
-        // Load weekly reports from localStorage
-        function loadReports() {
+        // Function to load reports from Firestore
+        async function loadReports() {
             const statusDisplay = document.getElementById("status-display");
-            const weekReport = JSON.parse(localStorage.getItem("weeklyReport") || "{}");
-
             statusDisplay.innerHTML = "";
-            Object.keys(weekReport).forEach(goal => {
-                const status = weekReport[goal] ? "fail" : "success";
-                const message = weekReport[goal] ? "Goal was missed" : "Goal met";
-                const div = document.createElement("div");
-                div.className = `${status} goal-status`;
-                div.innerText = `${goal}: ${message}`;
-                statusDisplay.appendChild(div);
+
+            const snapshot = await db.collection("weeklyReports").get();
+            snapshot.forEach(doc => {
+                const report = doc.data();
+                const goal1Status = report.goal1 ? "Goal was missed" : "Goal met";
+                const goal2Status = report.goal2 ? "Goal was missed" : "Goal met";
+                statusDisplay.innerHTML += `
+                    <div class="${report.goal1 ? 'fail' : 'success'} goal-status">Goal 1: ${goal1Status}</div>
+                    <div class="${report.goal2 ? 'fail' : 'success'} goal-status">Goal 2: ${goal2Status}</div>
+                `;
             });
         }
 
-        // Save report to localStorage
-        function submitReport() {
-            const report = {
-                "Goal 1": document.getElementById("missed-goal1").checked,
-                "Goal 2": document.getElementById("missed-goal2").checked
-            };
+        // Function to submit report to Firestore
+        async function submitReport() {
+            const missedGoal1 = document.getElementById("missed-goal1").checked;
+            const missedGoal2 = document.getElementById("missed-goal2").checked;
 
-            // Save current week's report
-            localStorage.setItem("weeklyReport", JSON.stringify(report));
+            await db.collection("weeklyReports").add({
+                goal1: missedGoal1,
+                goal2: missedGoal2,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
 
-            // Update display
-            loadReports();
             alert("Report submitted anonymously.");
+            loadReports(); // Refresh display
         }
-
-        // Clear the weekly report each Sunday at midnight
-        function resetWeeklyReport() {
-            const now = new Date();
-            const day = now.getDay();
-            const hours = now.getHours();
-            const minutes = now.getMinutes();
-            const seconds = now.getSeconds();
-
-            // Sunday midnight reset
-            if (day === 0 && hours === 0 && minutes === 0 && seconds === 0) {
-                localStorage.removeItem("weeklyReport");
-                loadReports();
-            }
-        }
-
-        // Run the reset check every hour
-        setInterval(resetWeeklyReport, 3600000);
     </script>
 </body>
 </html>
