@@ -3,15 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Initialize Firebase Data</title>
+    <title>Admin Initialization Page</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        #admin-section { display: none; margin-top: 20px; }
+        .item-container { margin-bottom: 15px; }
+        .item-container input { margin-right: 10px; }
+    </style>
 </head>
 <body>
     <h1>Admin: Initialize Firebase Data</h1>
-    <button onclick="initializeSettings()">Set Default Passcode</button>
-    <button onclick="initializeUsers()">Add Default Users</button>
-    <button onclick="initializeGoals()">Add Default Goals</button>
+
+    <!-- Admin Code Entry -->
+    <div id="admin-code-section">
+        <p>Enter the admin code to access the setup page:</p>
+        <input type="password" id="admin-code" placeholder="Admin Code">
+        <button onclick="checkAdminCode()">Submit</button>
+    </div>
+
+    <!-- Admin Section (Hidden until Admin Code is verified) -->
+    <div id="admin-section">
+        <h2>Manage Users, Goals, and Settings</h2>
+
+        <!-- User Management -->
+        <div>
+            <h3>Users</h3>
+            <div id="user-container"></div>
+            <button onclick="addUserInput()">Add User</button>
+        </div>
+
+        <!-- Goal Management -->
+        <div>
+            <h3>Goals</h3>
+            <div id="goal-container"></div>
+            <button onclick="addGoalInput()">Add Goal</button>
+        </div>
+
+        <!-- Settings Management (e.g., Passcode) -->
+        <div>
+            <h3>Settings</h3>
+            <div class="item-container">
+                <input type="text" id="passcode" placeholder="Enter new passcode">
+            </div>
+        </div>
+
+        <button onclick="submitData()">Submit Data</button>
+    </div>
 
     <script>
         const firebaseConfig = {
@@ -27,59 +66,108 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // Initialize default passcode in the settings collection
-        async function initializeSettings() {
-            try {
-                await db.collection("settings").doc("config").set({ passcode: "sharedcode" });
-                alert("Default passcode set successfully.");
-            } catch (error) {
-                console.error("Error setting passcode:", error);
-                alert("Failed to set default passcode.");
+        const adminCode = "admincode"; // Set your admin code here
+
+        function checkAdminCode() {
+            const inputCode = document.getElementById("admin-code").value.trim();
+            if (inputCode === adminCode) {
+                document.getElementById("admin-code-section").style.display = "none";
+                document.getElementById("admin-section").style.display = "block";
+                loadExistingData();
+            } else {
+                alert("Incorrect admin code.");
             }
         }
 
-        // Initialize default users in the users collection
-        async function initializeUsers() {
-            const defaultUsers = [
-                { username: "admin" },
-                { username: "user1" },
-                { username: "user2" }
-            ];
+        // Load existing users and goals from Firebase
+        async function loadExistingData() {
+            // Load Users
+            const userContainer = document.getElementById("user-container");
+            userContainer.innerHTML = "";
+            const userSnapshot = await db.collection("users").get();
+            userSnapshot.forEach(doc => {
+                const userData = doc.data();
+                addUserInput(doc.id, userData.username);
+            });
 
-            try {
-                const batch = db.batch();
-                defaultUsers.forEach(user => {
-                    const userRef = db.collection("users").doc(); // Generate new document ID
-                    batch.set(userRef, user);
-                });
-                await batch.commit();
-                alert("Default users added successfully.");
-            } catch (error) {
-                console.error("Error adding users:", error);
-                alert("Failed to add default users.");
+            // Load Goals
+            const goalContainer = document.getElementById("goal-container");
+            goalContainer.innerHTML = "";
+            const goalSnapshot = await db.collection("goals").get();
+            goalSnapshot.forEach(doc => {
+                const goalData = doc.data();
+                addGoalInput(doc.id, goalData.description);
+            });
+
+            // Load Passcode
+            const settingsDoc = await db.collection("settings").doc("config").get();
+            document.getElementById("passcode").value = settingsDoc.data()?.passcode || "";
+        }
+
+        // Add User Input
+        function addUserInput(id = "", username = "") {
+            const userContainer = document.getElementById("user-container");
+            const div = document.createElement("div");
+            div.classList.add("item-container");
+            div.innerHTML = `
+                <input type="text" placeholder="Username" value="${username}">
+                <button onclick="removeElement(this, '${id}', 'users')">Remove</button>
+            `;
+            userContainer.appendChild(div);
+        }
+
+        // Add Goal Input
+        function addGoalInput(id = "", description = "") {
+            const goalContainer = document.getElementById("goal-container");
+            const div = document.createElement("div");
+            div.classList.add("item-container");
+            div.innerHTML = `
+                <input type="text" placeholder="Goal Description" value="${description}">
+                <button onclick="removeElement(this, '${id}', 'goals')">Remove</button>
+            `;
+            goalContainer.appendChild(div);
+        }
+
+        // Remove an input element
+        async function removeElement(element, docId, collectionName) {
+            element.parentNode.remove();
+            if (docId) {
+                await db.collection(collectionName).doc(docId).delete();
             }
         }
 
-        // Initialize default goals in the goals collection
-        async function initializeGoals() {
-            const defaultGoals = [
-                { description: "Workout 3 times a week" },
-                { description: "No sugary snacks" },
-                { description: "Read a book each month" }
-            ];
-
-            try {
-                const batch = db.batch();
-                defaultGoals.forEach(goal => {
-                    const goalRef = db.collection("goals").doc(); // Generate new document ID
-                    batch.set(goalRef, goal);
-                });
-                await batch.commit();
-                alert("Default goals added successfully.");
-            } catch (error) {
-                console.error("Error adding goals:", error);
-                alert("Failed to add default goals.");
+        // Submit Data to Firebase
+        async function submitData() {
+            // Save Passcode
+            const passcode = document.getElementById("passcode").value.trim();
+            if (passcode) {
+                await db.collection("settings").doc("config").set({ passcode });
             }
+
+            // Save Users
+            const userContainer = document.getElementById("user-container");
+            const userInputs = userContainer.getElementsByTagName("input");
+            for (let i = 0; i < userInputs.length; i++) {
+                const username = userInputs[i].value.trim();
+                if (username) {
+                    const docRef = db.collection("users").doc();
+                    await docRef.set({ username });
+                }
+            }
+
+            // Save Goals
+            const goalContainer = document.getElementById("goal-container");
+            const goalInputs = goalContainer.getElementsByTagName("input");
+            for (let i = 0; i < goalInputs.length; i++) {
+                const description = goalInputs[i].value.trim();
+                if (description) {
+                    const docRef = db.collection("goals").doc();
+                    await docRef.set({ description });
+                }
+            }
+
+            alert("Data submitted successfully.");
+            loadExistingData(); // Refresh the data
         }
     </script>
 </body>
