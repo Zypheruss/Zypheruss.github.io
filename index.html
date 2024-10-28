@@ -12,9 +12,9 @@
         .success { color: green; }
         .fail { color: red; }
     </style>
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js"></script>
+    <!-- Firebase SDK v8 -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 </head>
 <body>
     <h1>Anonymous Goal Reporting</h1>
@@ -64,7 +64,7 @@
         const db = firebase.firestore();
 
         // Set a simple passcode (for simplicity, hardcoded)
-        const passcode = "sharedcode"; // Move passcode declaration here
+        const passcode = "sharedcode"; // Declare passcode here
 
         // Check if the password is correct, then load data
         function checkPassword() {
