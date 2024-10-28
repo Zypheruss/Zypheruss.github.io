@@ -3,167 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anonymous Goal Reporting with Firebase</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; }
-        #goal-form, #password-section, #punishment-section { margin-top: 20px; }
-        #reporting-section, #punishment-section { display: none; }
-        .goal-status, .punishment-status { margin: 10px; padding: 10px; border: 1px solid #ddd; }
-        .success { color: green; }
-        .fail { color: red; }
-    </style>
-    <!-- Firebase SDK v8 -->
+    <title>Initialize Firebase Data</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 </head>
 <body>
-    <h1>Anonymous Goal Reporting</h1>
-
-    <!-- Password Section -->
-    <div id="password-section">
-        <p>Enter your unique passcode:</p>
-        <input type="password" id="password" placeholder="Passcode">
-        <button onclick="checkPassword()">Submit</button>
-    </div>
-
-    <!-- Reporting Section -->
-    <div id="reporting-section">
-        <h2>Anonymous Goal Reporting</h2>
-        <h3>Current Goals</h3>
-        <div id="goals-list"></div>
-
-        <!-- Reporting Form -->
-        <div id="goal-form">
-            <p>Did you fail any goals this week?</p>
-            <input type="checkbox" id="failed-goal"> Failed a goal<br>
-            <button onclick="submitGoalReport()">Submit Report</button>
-        </div>
-
-        <h3>This Week's Report</h3>
-        <div id="status-display"></div>
-
-        <!-- Punishment Section -->
-        <div id="punishment-section">
-            <h3>Weekly Punishment Assignment</h3>
-            <div id="punishment-info">
-                <p><strong>Your Assigned User:</strong> <span id="assigned-user"></span></p>
-                <p><strong>Your Assigned Punishment:</strong> <span id="assigned-punishment"></span></p>
-            </div>
-            <div id="punishment-form">
-                <textarea id="punishment-text" placeholder="Enter punishment..."></textarea><br>
-                <button onclick="submitPunishment()">Submit Punishment</button>
-            </div>
-        </div>
-    </div>
+    <h1>Admin: Initialize Firebase Data</h1>
+    <button onclick="initializeSettings()">Set Default Passcode</button>
+    <button onclick="initializeUsers()">Add Default Users</button>
+    <button onclick="initializeGoals()">Add Default Goals</button>
 
     <script>
-        // Firebase configuration
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_AUTH_DOMAIN",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_STORAGE_BUCKET",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
+            apiKey: "AIzaSyCXH3CI4YN4fRDH1Wcp_PQQCGBvpp8Dep8",
+            authDomain: "goal-storing.firebaseapp.com",
+            projectId: "goal-storing",
+            storageBucket: "goal-storing.appspot.com",
+            messagingSenderId: "1041018123354",
+            appId: "1:1041018123354:web:497f0baf04deb124ccd463",
+            measurementId: "G-1FPM1DV7KH"
         };
 
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        let currentUser;
-
-        // Check if the password is correct, then load user-specific data
-        async function checkPassword() {
-            const inputPass = document.getElementById("password").value.trim();
-            const userDoc = await db.collection("users").where("password", "==", inputPass).get();
-            if (!userDoc.empty) {
-                currentUser = userDoc.docs[0].id;
-                document.getElementById("password-section").style.display = "none";
-                document.getElementById("reporting-section").style.display = "block";
-                loadGoals();
-                loadPunishmentAssignment();
-            } else {
-                alert("Incorrect passcode.");
+        // Initialize default passcode in the settings collection
+        async function initializeSettings() {
+            try {
+                await db.collection("settings").doc("config").set({ passcode: "sharedcode" });
+                alert("Default passcode set successfully.");
+            } catch (error) {
+                console.error("Error setting passcode:", error);
+                alert("Failed to set default passcode.");
             }
         }
 
-        // Load goals from Firestore for the current user
-        async function loadGoals() {
-            const goalsList = document.getElementById("goals-list");
-            goalsList.innerHTML = "";
-            const goalsSnapshot = await db.collection("goals").where("userId", "==", currentUser).get();
-            goalsSnapshot.forEach((doc) => {
-                const goal = doc.data();
-                const goalElem = document.createElement("div");
-                goalElem.classList.add("goal-status");
-                goalElem.innerHTML = `Goal: ${goal.text}`;
-                goalsList.appendChild(goalElem);
-            });
-        }
+        // Initialize default users in the users collection
+        async function initializeUsers() {
+            const defaultUsers = [
+                { username: "admin" },
+                { username: "user1" },
+                { username: "user2" }
+            ];
 
-        // Submit a goal report to Firestore
-        async function submitGoalReport() {
-            const failedGoal = document.getElementById("failed-goal").checked;
-            await db.collection("goalReports").add({
-                userId: currentUser,
-                failed: failedGoal,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            alert("Report submitted anonymously.");
-            loadGoals();
-        }
-
-        // Load punishment assignment for the week
-        async function loadPunishmentAssignment() {
-            const assignedUserElem = document.getElementById("assigned-user");
-            const assignedPunishmentElem = document.getElementById("assigned-punishment");
-
-            // Random assignment logic would run server-side weekly and update Firestore
-            const assignmentDoc = await db.collection("punishmentAssignments").doc(currentUser).get();
-            if (assignmentDoc.exists) {
-                const assignment = assignmentDoc.data();
-                assignedUserElem.textContent = assignment.assignedUser;
-                assignedPunishmentElem.textContent = assignment.punishment || "Not assigned yet.";
-            }
-        }
-
-        // Submit punishment for the assigned user
-        async function submitPunishment() {
-            const punishmentText = document.getElementById("punishment-text").value.trim();
-            if (!punishmentText) {
-                alert("Punishment text is required.");
-                return;
-            }
-
-            const assignmentDoc = await db.collection("punishmentAssignments").doc(currentUser).get();
-            if (assignmentDoc.exists && !assignmentDoc.data().punishment) {
-                await db.collection("punishmentAssignments").doc(currentUser).update({
-                    punishment: punishmentText
+            try {
+                const batch = db.batch();
+                defaultUsers.forEach(user => {
+                    const userRef = db.collection("users").doc(); // Generate new document ID
+                    batch.set(userRef, user);
                 });
-                alert("Punishment submitted.");
-                loadPunishmentAssignment();
-            } else {
-                alert("Punishment already submitted or unavailable.");
+                await batch.commit();
+                alert("Default users added successfully.");
+            } catch (error) {
+                console.error("Error adding users:", error);
+                alert("Failed to add default users.");
             }
         }
 
-        // Admin: Add new user to Firestore
-        async function addUser(name, password) {
-            await db.collection("users").add({ name, password });
-            alert(`User ${name} added.`);
-        }
+        // Initialize default goals in the goals collection
+        async function initializeGoals() {
+            const defaultGoals = [
+                { description: "Workout 3 times a week" },
+                { description: "No sugary snacks" },
+                { description: "Read a book each month" }
+            ];
 
-        // Admin: Add new goal to Firestore
-        async function addGoal(userId, text) {
-            await db.collection("goals").add({ userId, text });
-            alert("Goal added.");
-        }
-
-        // Admin: Remove goal from Firestore
-        async function removeGoal(goalId) {
-            await db.collection("goals").doc(goalId).delete();
-            alert("Goal removed.");
+            try {
+                const batch = db.batch();
+                defaultGoals.forEach(goal => {
+                    const goalRef = db.collection("goals").doc(); // Generate new document ID
+                    batch.set(goalRef, goal);
+                });
+                await batch.commit();
+                alert("Default goals added successfully.");
+            } catch (error) {
+                console.error("Error adding goals:", error);
+                alert("Failed to add default goals.");
+            }
         }
     </script>
 </body>
