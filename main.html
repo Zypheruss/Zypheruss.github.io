@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonymous Goal Reporting</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        #goal-form, #password-section { margin-top: 20px; }
+        #reporting-section { display: none; }
+        .goal-status { margin: 10px; padding: 10px; border: 1px solid #ddd; }
+        .success { color: green; }
+        .fail { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Anonymous Goal Reporting</h1>
+
+    <!-- Password Section -->
+    <div id="password-section">
+        <p>Enter the passcode to report:</p>
+        <input type="password" id="password" placeholder="Passcode">
+        <button onclick="checkPassword()">Submit</button>
+    </div>
+
+    <!-- Reporting Section -->
+    <div id="reporting-section">
+        <h2>Weekly Goals</h2>
+        <div id="goals">
+            <!-- Example goals; update to fit your group's goals -->
+            <div class="goal-status" id="goal1">Goal 1: Workout 3 times a week</div>
+            <div class="goal-status" id="goal2">Goal 2: No sugary snacks</div>
+        </div>
+        
+        <!-- Reporting Form -->
+        <div id="goal-form">
+            <p>Report if you failed any goals this week (anonymous):</p>
+            <input type="checkbox" id="missed-goal1"> Missed Goal 1<br>
+            <input type="checkbox" id="missed-goal2"> Missed Goal 2<br>
+            <button onclick="submitReport()">Submit Report</button>
+        </div>
+
+        <!-- Status Display -->
+        <h3>This Week's Reports</h3>
+        <div id="status-display"></div>
+    </div>
+
+    <script>
+        // Set a simple passcode (insecure for simplicity)
+        const passcode = "sharedcode";
+
+        // Function to check the passcode and display the reporting section
+        function checkPassword() {
+            const inputPass = document.getElementById("password").value;
+            if (inputPass === passcode) {
+                document.getElementById("password-section").style.display = "none";
+                document.getElementById("reporting-section").style.display = "block";
+                loadReports();
+            } else {
+                alert("Incorrect passcode.");
+            }
+        }
+
+        // Load weekly reports from localStorage
+        function loadReports() {
+            const statusDisplay = document.getElementById("status-display");
+            const weekReport = JSON.parse(localStorage.getItem("weeklyReport") || "{}");
+
+            statusDisplay.innerHTML = "";
+            Object.keys(weekReport).forEach(goal => {
+                const status = weekReport[goal] ? "fail" : "success";
+                const message = weekReport[goal] ? "Goal was missed" : "Goal met";
+                const div = document.createElement("div");
+                div.className = `${status} goal-status`;
+                div.innerText = `${goal}: ${message}`;
+                statusDisplay.appendChild(div);
+            });
+        }
+
+        // Save report to localStorage
+        function submitReport() {
+            const report = {
+                "Goal 1": document.getElementById("missed-goal1").checked,
+                "Goal 2": document.getElementById("missed-goal2").checked
+            };
+
+            // Save current week's report
+            localStorage.setItem("weeklyReport", JSON.stringify(report));
+
+            // Update display
+            loadReports();
+            alert("Report submitted anonymously.");
+        }
+
+        // Clear the weekly report each Sunday at midnight
+        function resetWeeklyReport() {
+            const now = new Date();
+            const day = now.getDay();
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+
+            // Sunday midnight reset
+            if (day === 0 && hours === 0 && minutes === 0 && seconds === 0) {
+                localStorage.removeItem("weeklyReport");
+                loadReports();
+            }
+        }
+
+        // Run the reset check every hour
+        setInterval(resetWeeklyReport, 3600000);
+    </script>
+</body>
+</html>
