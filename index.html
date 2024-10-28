@@ -68,12 +68,14 @@
 
         // Check if the password is correct, then load data
         function checkPassword() {
-            const inputPass = document.getElementById("password").value;
+            console.log("Passcode correct.");
+            const inputPass = document.getElementById("password").value.trim();
             if (inputPass === passcode) {
                 document.getElementById("password-section").style.display = "none";
                 document.getElementById("reporting-section").style.display = "block";
                 loadReports();
             } else {
+                console.log("Passcode incorrect.");
                 alert("Incorrect passcode.");
             }
         }
