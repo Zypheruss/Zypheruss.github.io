@@ -172,8 +172,12 @@
             if (!reportSnapshot.empty) {
                 const reportData = reportSnapshot.docs[0].data();
                 document.getElementById("time-since-fail").textContent = new Date(reportData.timestamp.toDate()).toLocaleString();
+                
                 const failCountSnapshot = await db.collection("weeklyReports").where("userId", "==", currentUser).get();
                 document.getElementById("fail-count").textContent = failCountSnapshot.size;
+            } else {
+                document.getElementById("time-since-fail").textContent = "N/A";
+                document.getElementById("fail-count").textContent = "0";
             }
         }
 
