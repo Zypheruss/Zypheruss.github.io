@@ -151,12 +151,17 @@
         async function loadPunishmentAssignment() {
             const assignedUserElem = document.getElementById("assigned-user");
             const assignedPunishmentElem = document.getElementById("assigned-punishment");
-
+    
             const assignmentDoc = await db.collection("punishmentAssignments").doc(currentUser).get();
             if (assignmentDoc.exists) {
                 const assignment = assignmentDoc.data();
-                assignedUserElem.textContent = assignment.assignedUser;
+                assignedUserElem.textContent = assignment.assignedUser || "No user assigned";
                 assignedPunishmentElem.textContent = assignment.punishment || "Not assigned yet.";
+    
+                // Ensure punishment-section is displayed if assignment data exists
+                document.getElementById("punishment-section").style.display = "block";
+            } else {
+                console.log("No punishment assignment found for current user.");
             }
         }
 
