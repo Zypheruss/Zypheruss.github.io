@@ -6,7 +6,7 @@
     <title>Anonymous Goal Reporting with Firebase</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; }
-        #goal-form, #password-section, #punishment-section { margin-top: 20px; }
+        #goal-form, #password-section, #punishment-section, #user-password-section { margin-top: 20px; }
         #reporting-section, #punishment-section, #admin-section { display: none; }
         .goal-status, .punishment-status { margin: 10px; padding: 10px; border: 1px solid #ddd; }
         .success { color: green; }
@@ -14,7 +14,6 @@
         .item-container { margin-bottom: 15px; }
         .item-container input { margin-right: 10px; }
     </style>
-    <!-- Firebase SDK v8 -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 </head>
@@ -26,13 +25,6 @@
         <p>Enter your unique passcode:</p>
         <input type="password" id="password" placeholder="Passcode">
         <button onclick="checkPassword()">Submit</button>
-    </div>
-
-    <!-- Admin Code Section -->
-    <div id="admin-code-section">
-        <p>Enter the admin code to access admin controls:</p>
-        <input type="password" id="admin-code" placeholder="Admin Code">
-        <button onclick="checkAdminCode()">Submit</button>
     </div>
 
     <!-- Reporting Section -->
@@ -50,33 +42,37 @@
 
         <h3>This Week's Report</h3>
         <div id="status-display"></div>
+    </div>
 
-        <!-- Punishment Section -->
-        <div id="punishment-section">
-            <h3>Weekly Punishment Assignment</h3>
-            <div id="punishment-info">
-                <p><strong>Your Assigned User:</strong> <span id="assigned-user"></span></p>
-                <p><strong>Your Assigned Punishment:</strong> <span id="assigned-punishment"></span></p>
-            </div>
-            <div id="punishment-form">
-                <textarea id="punishment-text" placeholder="Enter punishment..."></textarea><br>
-                <button onclick="submitPunishment()">Submit Punishment</button>
-            </div>
+    <!-- Punishment Section -->
+    <div id="punishment-section">
+        <h3>Weekly Punishment Assignment</h3>
+        <div id="punishment-info">
+            <p><strong>Your Assigned User:</strong> <span id="assigned-user"></span></p>
+            <p><strong>Your Assigned Punishment:</strong> <span id="assigned-punishment"></span></p>
         </div>
+        <div id="punishment-form">
+            <textarea id="punishment-text" placeholder="Enter punishment..."></textarea><br>
+            <button onclick="submitPunishment()">Submit Punishment</button>
+        </div>
+    </div>
+
+    <!-- User Password Section -->
+    <div id="user-password-section" style="display: none;">
+        <h3>Change Your Password</h3>
+        <input type="password" id="new-password" placeholder="New Password">
+        <button onclick="changePassword()">Change Password</button>
     </div>
 
     <!-- Admin Section -->
     <div id="admin-section">
         <h2>Admin: Manage Users and Goals</h2>
-
-        <!-- User Management -->
         <div>
             <h3>Users</h3>
             <div id="user-container"></div>
             <button onclick="addUserInput()">Add User</button>
         </div>
 
-        <!-- Goal Management -->
         <div>
             <h3>Goals</h3>
             <div id="goal-container"></div>
@@ -84,6 +80,7 @@
         </div>
 
         <button onclick="submitAdminData()">Submit Data</button>
+        <button onclick="clearThisWeeksFails()">Clear This Week's Fails</button>
     </div>
 
     <script>
@@ -97,14 +94,12 @@
             appId: "1:1041018123354:web:497f0baf04deb124ccd463",
             measurementId: "G-1FPM1DV7KH"
         };
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
         const adminCode = "admincode"; // Set your admin code here
         let currentUser;
 
-        // Check if the user password is correct, then load user-specific data
         async function checkPassword() {
             const inputPass = document.getElementById("password").value.trim();
             const userDoc = await db.collection("users").where("password", "==", inputPass).get();
@@ -112,6 +107,7 @@
                 currentUser = userDoc.docs[0].id;
                 document.getElementById("password-section").style.display = "none";
                 document.getElementById("reporting-section").style.display = "block";
+                document.getElementById("user-password-section").style.display = "block";
                 loadGoals();
                 loadPunishmentAssignment();
             } else {
@@ -119,19 +115,6 @@
             }
         }
 
-        // Check if the admin code is correct, then show the admin section
-        function checkAdminCode() {
-            const inputCode = document.getElementById("admin-code").value.trim();
-            if (inputCode === adminCode) {
-                document.getElementById("admin-code-section").style.display = "none";
-                document.getElementById("admin-section").style.display = "block";
-                loadAdminData();
-            } else {
-                alert("Incorrect admin code.");
-            }
-        }
-
-        // Load goals for the current user
         async function loadGoals() {
             const goalsList = document.getElementById("goals-list");
             goalsList.innerHTML = "";
@@ -145,7 +128,6 @@
             });
         }
 
-        // Load punishment assignment for the week
         async function loadPunishmentAssignment() {
             const assignedUserElem = document.getElementById("assigned-user");
             const assignedPunishmentElem = document.getElementById("assigned-punishment");
@@ -158,7 +140,6 @@
             }
         }
 
-        // Submit punishment for the assigned user
         async function submitPunishment() {
             const punishmentText = document.getElementById("punishment-text").value.trim();
             if (!punishmentText) {
@@ -178,60 +159,66 @@
             }
         }
 
-        // Load admin data (users and goals) for editing
+        async function changePassword() {
+            const newPassword = document.getElementById("new-password").value.trim();
+            if (newPassword) {
+                await db.collection("users").doc(currentUser).update({ password: newPassword });
+                alert("Password changed successfully.");
+            } else {
+                alert("Password cannot be empty.");
+            }
+        }
+
+        async function clearThisWeeksFails() {
+            const failsSnapshot = await db.collection("fails").get();
+            failsSnapshot.forEach(async (doc) => {
+                await db.collection("fails").doc(doc.id).delete();
+            });
+            alert("This week's fails cleared.");
+        }
+
         async function submitAdminData() {
             const userInputs = document.querySelectorAll("#user-container .item-container");
-    
-            // Loop through user inputs to add or update users
             for (let input of userInputs) {
-                const id = input.getAttribute("data-id"); // Assuming data-id attribute for user document id
+                const id = input.getAttribute("data-id");
                 const name = input.children[0].value.trim();
                 const password = input.children[1].value.trim();
-    
+
                 if (name && password) {
                     if (id) {
-                        // Update the existing user
                         await db.collection("users").doc(id).set({ name, password });
                     } else {
-                        // Add new user if id is not available
                         await db.collection("users").add({ name, password });
                     }
                 }
             }
-    
+
             const goalInputs = document.querySelectorAll("#goal-container .item-container");
-    
-            // Loop through goal inputs to add or update goals
             for (let input of goalInputs) {
-                const id = input.getAttribute("data-id"); // Assuming data-id attribute for goal document id
+                const id = input.getAttribute("data-id");
                 const text = input.children[0].value.trim();
-    
+
                 if (text) {
                     if (id) {
-                        // Update the existing goal
                         await db.collection("goals").doc(id).set({ text });
                     } else {
-                        // Add new goal if id is not available
                         await db.collection("goals").add({ text });
                     }
                 }
             }
-    
+
             alert("Data submitted successfully!");
-            loadAdminData(); // Reloads the admin data to show updates
+            loadAdminData();
         }
-    
-        // Updated function to loadAdminData to set data-id for each item
+
         async function loadAdminData() {
-            // Load Users
             const userContainer = document.getElementById("user-container");
             userContainer.innerHTML = "";
             const userSnapshot = await db.collection("users").get();
             userSnapshot.forEach(doc => {
                 addUserInput(doc.id, doc.data().name, doc.data().password);
             });
-    
-            // Load Goals
+
             const goalContainer = document.getElementById("goal-container");
             goalContainer.innerHTML = "";
             const goalSnapshot = await db.collection("goals").get();
@@ -239,51 +226,39 @@
                 addGoalInput(doc.id, doc.data().text);
             });
         }
-    
-        // Modified addUserInput and addGoalInput to include data-id for tracking
+
         function addUserInput(id = "", name = "", password = "") {
             const userContainer = document.getElementById("user-container");
             const div = document.createElement("div");
             div.classList.add("item-container");
-            div.setAttribute("data-id", id); // Set data-id to track document ID
-            div.innerHTML = 
-                `<input type="text" placeholder="Username" value="${name}">
-                <input type="password" placeholder="Password" value="${password}">
-                <button onclick="removeUser('${id}', this)">Remove</button>`;
+            div.setAttribute("data-id", id);
+            div.innerHTML = `
+                <input type="text" value="${name}" placeholder="User Name">
+                <input type="password" value="${password}" placeholder="User Password">
+                <button onclick="removeItem(this)">Remove</button>
+            `;
             userContainer.appendChild(div);
         }
-        async function removeUser(id, elem) {
-            if (id) await db.collection("users").doc(id).delete();
-            elem.parentElement.remove();
-        }
 
-        async function removeGoal(id, elem) {
-            if (id) await db.collection("goals").doc(id).delete();
-            elem.parentElement.remove();
-        }
-    
         function addGoalInput(id = "", text = "") {
             const goalContainer = document.getElementById("goal-container");
             const div = document.createElement("div");
             div.classList.add("item-container");
-            div.setAttribute("data-id", id); // Set data-id to track document ID
-            div.innerHTML = 
-                `<input type="text" placeholder="Goal" value="${text}">
-                <button onclick="removeGoal('${id}', this)">Remove</button>`;
+            div.setAttribute("data-id", id);
+            div.innerHTML = `
+                <input type="text" value="${text}" placeholder="Goal">
+                <button onclick="removeItem(this)">Remove</button>
+            `;
             goalContainer.appendChild(div);
         }
 
-        const goalInputs = document.querySelectorAll("#goal-container .item-container");
-            for (let input of goalInputs) {
-                const text = input.children[0].value.trim();
-                if (text) {
-                    await db.collection("goals").add({ text });
-                }
-            }
-
-            alert("Data submitted successfully!");
-            loadAdminData();
+        function removeItem(button) {
+            const itemContainer = button.parentElement;
+            itemContainer.parentElement.removeChild(itemContainer);
         }
+
+        // Initial load
+        loadAdminData();
     </script>
 </body>
 </html>
