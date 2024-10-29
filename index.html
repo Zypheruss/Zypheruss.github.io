@@ -153,16 +153,21 @@
             const punishmentsSnapshot = await db.collection("punishmentAssignments").get();
             punishmentsSnapshot.forEach(doc => {
                 const assignment = doc.data();
+                const punishmentDiv = document.createElement("div");
+                
                 if (assignment.punishment) {
-                    const punishmentDiv = document.createElement("div");
                     punishmentDiv.innerHTML = `
                         <p><strong>${assignment.assignedUser}:</strong> ${assignment.punishment}</p>
                         <input type="checkbox" onclick="voteUnfair('${doc.id}')"> Unfair
                     `;
-                    votingSection.appendChild(punishmentDiv);
+                } else {
+                    punishmentDiv.innerHTML = `<p><strong>${assignment.assignedUser}:</strong> Not set</p>`;
                 }
+        
+                votingSection.appendChild(punishmentDiv);
             });
         }
+
         // Load punishment assignment for the week
         async function loadPunishmentAssignment() {
             const assignedUserElem = document.getElementById("assigned-user");
@@ -208,10 +213,11 @@
                 alert("Punishment text is required.");
                 return;
             }
-
+        
             const assignmentDoc = await db.collection("punishmentAssignments").doc(currentUser).get();
             if (assignmentDoc.exists && !assignmentDoc.data().punishment) {
-                await db.collection("punishmentAssignments").doc(currentUser).update({
+                const assignedUser = assignmentDoc.data().assignedUserId;
+                await db.collection("punishmentAssignments").doc(assignedUser).update({
                     punishment: punishmentText
                 });
                 alert("Punishment submitted.");
@@ -220,6 +226,7 @@
                 alert("Punishment already submitted or unavailable.");
             }
         }
+
 
         // Submit weekly goal report
         async function submitGoalReport() {
