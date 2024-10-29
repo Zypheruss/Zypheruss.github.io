@@ -213,9 +213,9 @@
                 alert("Punishment text is required.");
                 return;
             }
-        
+    
             const assignmentDoc = await db.collection("punishmentAssignments").doc(currentUser).get();
-            if (assignmentDoc.exists && !assignmentDoc.data().punishment) {
+            if (assignmentDoc.exists) {
                 const assignedUser = assignmentDoc.data().assignedUserId;
                 await db.collection("punishmentAssignments").doc(assignedUser).update({
                     punishment: punishmentText
@@ -223,10 +223,10 @@
                 alert("Punishment submitted.");
                 loadPunishmentAssignment();
             } else {
-                alert("Punishment already submitted or unavailable.");
+                console.log("No punishment assignment document exists for the current user.");
+                alert("No punishment assignment available for submission.");
             }
         }
-
 
         // Submit weekly goal report
         async function submitGoalReport() {
@@ -284,8 +284,12 @@
         async function randomizePunishmentAssignments() {
             const usersSnapshot = await db.collection("users").get();
             const users = usersSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
-            let shuffledUsers = users.slice().sort(() => Math.random() - 0.5);
-        
+            let shuffledUsers;
+    
+            do {
+                shuffledUsers = users.slice().sort(() => Math.random() - 0.5);
+            } while (shuffledUsers.some((user, i) => user.id === users[i].id));
+    
             for (let i = 0; i < users.length; i++) {
                 const assignedUser = shuffledUsers[(i + 1) % users.length];
                 await db.collection("punishmentAssignments").doc(users[i].id).set({
