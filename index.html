@@ -6,8 +6,8 @@
     <title>Anonymous Goal Reporting with Firebase</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; }
-        #goal-form, #password-section, #punishment-section, #user-password-section { margin-top: 20px; }
-        #reporting-section, #punishment-section, #admin-section { display: none; }
+        #goal-form, #password-section, #punishment-section, #user-password-section, #admin-section { margin-top: 20px; }
+        #reporting-section, #punishment-section { display: none; }
         .goal-status, .punishment-status { margin: 10px; padding: 10px; border: 1px solid #ddd; }
         .success { color: green; }
         .fail { color: red; }
@@ -20,8 +20,15 @@
 <body>
     <h1>Anonymous Goal Reporting</h1>
 
-    <!-- Password Section -->
-    <div id="password-section">
+    <!-- Admin Code Section -->
+    <div id="admin-code-section">
+        <p>Enter the admin code:</p>
+        <input type="password" id="admin-code" placeholder="Admin Code">
+        <button onclick="checkAdminCode()">Submit</button>
+    </div>
+
+    <!-- User Password Section -->
+    <div id="password-section" style="display: none;">
         <p>Enter your unique passcode:</p>
         <input type="password" id="password" placeholder="Passcode">
         <button onclick="checkPassword()">Submit</button>
@@ -57,7 +64,7 @@
         </div>
     </div>
 
-    <!-- User Password Section -->
+    <!-- User Password Change Section -->
     <div id="user-password-section" style="display: none;">
         <h3>Change Your Password</h3>
         <input type="password" id="new-password" placeholder="New Password">
@@ -65,7 +72,7 @@
     </div>
 
     <!-- Admin Section -->
-    <div id="admin-section">
+    <div id="admin-section" style="display: none;">
         <h2>Admin: Manage Users and Goals</h2>
         <div>
             <h3>Users</h3>
@@ -99,6 +106,17 @@
 
         const adminCode = "admincode"; // Set your admin code here
         let currentUser;
+
+        function checkAdminCode() {
+            const inputCode = document.getElementById("admin-code").value.trim();
+            if (inputCode === adminCode) {
+                document.getElementById("admin-code-section").style.display = "none";
+                document.getElementById("admin-section").style.display = "block";
+                loadAdminData();
+            } else {
+                alert("Incorrect admin code.");
+            }
+        }
 
         async function checkPassword() {
             const inputPass = document.getElementById("password").value.trim();
@@ -213,17 +231,20 @@
 
         async function loadAdminData() {
             const userContainer = document.getElementById("user-container");
+            const goalContainer = document.getElementById("goal-container");
             userContainer.innerHTML = "";
-            const userSnapshot = await db.collection("users").get();
-            userSnapshot.forEach(doc => {
-                addUserInput(doc.id, doc.data().name, doc.data().password);
+            goalContainer.innerHTML = "";
+
+            const usersSnapshot = await db.collection("users").get();
+            usersSnapshot.forEach((doc) => {
+                const user = doc.data();
+                addUserInput(doc.id, user.name, user.password);
             });
 
-            const goalContainer = document.getElementById("goal-container");
-            goalContainer.innerHTML = "";
-            const goalSnapshot = await db.collection("goals").get();
-            goalSnapshot.forEach(doc => {
-                addGoalInput(doc.id, doc.data().text);
+            const goalsSnapshot = await db.collection("goals").get();
+            goalsSnapshot.forEach((doc) => {
+                const goal = doc.data();
+                addGoalInput(doc.id, goal.text);
             });
         }
 
