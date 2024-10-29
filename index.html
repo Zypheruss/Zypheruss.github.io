@@ -146,7 +146,23 @@
                 goalsList.appendChild(goalElem);
             });
         }
-
+        async function loadPunishmentVotes() {
+            const votingSection = document.getElementById("voting-section");
+            votingSection.innerHTML = "<h4>Vote if punishments are unfair</h4>";
+        
+            const punishmentsSnapshot = await db.collection("punishmentAssignments").get();
+            punishmentsSnapshot.forEach(doc => {
+                const assignment = doc.data();
+                if (assignment.punishment) {
+                    const punishmentDiv = document.createElement("div");
+                    punishmentDiv.innerHTML = `
+                        <p><strong>${assignment.assignedUser}:</strong> ${assignment.punishment}</p>
+                        <input type="checkbox" onclick="voteUnfair('${doc.id}')"> Unfair
+                    `;
+                    votingSection.appendChild(punishmentDiv);
+                }
+            });
+        }
         // Load punishment assignment for the week
         async function loadPunishmentAssignment() {
             const assignedUserElem = document.getElementById("assigned-user");
@@ -228,12 +244,25 @@
         }
 
         // Cast vote for punishment fairness
-        async function voteUnfair() {
+        async function voteUnfair(assignmentId) {
             await db.collection("punishmentVotes").add({
+                assignmentId,
                 userId: currentUser,
                 vote: "unfair"
             });
-            alert("Vote submitted.");
+        
+            const votesSnapshot = await db.collection("punishmentVotes").where("assignmentId", "==", assignmentId).get();
+            const totalVotes = votesSnapshot.size;
+            const usersCount = (await db.collection("users").get()).size;
+        
+            if (totalVotes > usersCount / 2) {
+                await db.collection("punishmentAssignments").doc(assignmentId).update({
+                    punishment: ""
+                });
+                alert("Punishment was deemed unfair and has been removed. A new punishment must be set.");
+            } else {
+                alert("Vote submitted.");
+            }
         }
 
         // Admin function to clear this week's fails
@@ -245,22 +274,22 @@
             alert("Weekly fails cleared.");
         }
 
-        // Randomize punishment assignments
         async function randomizePunishmentAssignments() {
             const usersSnapshot = await db.collection("users").get();
-            const users = usersSnapshot.docs.map(doc => doc.id);
-            const shuffledUsers = users.sort(() => Math.random() - 0.5);
-
+            const users = usersSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
+            let shuffledUsers = users.slice().sort(() => Math.random() - 0.5);
+        
             for (let i = 0; i < users.length; i++) {
                 const assignedUser = shuffledUsers[(i + 1) % users.length];
-                await db.collection("punishmentAssignments").doc(users[i]).set({
-                    assignedUser,
+                await db.collection("punishmentAssignments").doc(users[i].id).set({
+                    assignedUser: assignedUser.name,
                     punishment: ""
                 });
             }
             alert("Punishment assignments randomized.");
             loadAdminData();
         }
+
 
         // Load admin data (users and goals) for editing
         async function loadAdminData() {
