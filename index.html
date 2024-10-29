@@ -252,6 +252,15 @@
                 <button onclick="removeUser('${id}', this)">Remove</button>`;
             userContainer.appendChild(div);
         }
+        async function removeUser(id, elem) {
+            if (id) await db.collection("users").doc(id).delete();
+            elem.parentElement.remove();
+        }
+
+        async function removeGoal(id, elem) {
+            if (id) await db.collection("goals").doc(id).delete();
+            elem.parentElement.remove();
+        }
     
         function addGoalInput(id = "", text = "") {
             const goalContainer = document.getElementById("goal-container");
@@ -262,6 +271,18 @@
                 `<input type="text" placeholder="Goal" value="${text}">
                 <button onclick="removeGoal('${id}', this)">Remove</button>`;
             goalContainer.appendChild(div);
+        }
+
+        const goalInputs = document.querySelectorAll("#goal-container .item-container");
+            for (let input of goalInputs) {
+                const text = input.children[0].value.trim();
+                if (text) {
+                    await db.collection("goals").add({ text });
+                }
+            }
+
+            alert("Data submitted successfully!");
+            loadAdminData();
         }
     </script>
 </body>
