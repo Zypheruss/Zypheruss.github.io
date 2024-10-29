@@ -179,6 +179,49 @@
         }
 
         // Load admin data (users and goals) for editing
+        async function submitAdminData() {
+            const userInputs = document.querySelectorAll("#user-container .item-container");
+    
+            // Loop through user inputs to add or update users
+            for (let input of userInputs) {
+                const id = input.getAttribute("data-id"); // Assuming data-id attribute for user document id
+                const name = input.children[0].value.trim();
+                const password = input.children[1].value.trim();
+    
+                if (name && password) {
+                    if (id) {
+                        // Update the existing user
+                        await db.collection("users").doc(id).set({ name, password });
+                    } else {
+                        // Add new user if id is not available
+                        await db.collection("users").add({ name, password });
+                    }
+                }
+            }
+    
+            const goalInputs = document.querySelectorAll("#goal-container .item-container");
+    
+            // Loop through goal inputs to add or update goals
+            for (let input of goalInputs) {
+                const id = input.getAttribute("data-id"); // Assuming data-id attribute for goal document id
+                const text = input.children[0].value.trim();
+    
+                if (text) {
+                    if (id) {
+                        // Update the existing goal
+                        await db.collection("goals").doc(id).set({ text });
+                    } else {
+                        // Add new goal if id is not available
+                        await db.collection("goals").add({ text });
+                    }
+                }
+            }
+    
+            alert("Data submitted successfully!");
+            loadAdminData(); // Reloads the admin data to show updates
+        }
+    
+        // Updated function to loadAdminData to set data-id for each item
         async function loadAdminData() {
             // Load Users
             const userContainer = document.getElementById("user-container");
@@ -187,7 +230,7 @@
             userSnapshot.forEach(doc => {
                 addUserInput(doc.id, doc.data().name, doc.data().password);
             });
-
+    
             // Load Goals
             const goalContainer = document.getElementById("goal-container");
             goalContainer.innerHTML = "";
@@ -196,63 +239,29 @@
                 addGoalInput(doc.id, doc.data().text);
             });
         }
-
-        // Admin functions to add inputs for users and goals
+    
+        // Modified addUserInput and addGoalInput to include data-id for tracking
         function addUserInput(id = "", name = "", password = "") {
             const userContainer = document.getElementById("user-container");
             const div = document.createElement("div");
             div.classList.add("item-container");
-            div.innerHTML = `
-                <input type="text" placeholder="Username" value="${name}">
+            div.setAttribute("data-id", id); // Set data-id to track document ID
+            div.innerHTML = 
+                `<input type="text" placeholder="Username" value="${name}">
                 <input type="password" placeholder="Password" value="${password}">
-                <button onclick="removeUser('${id}', this)">Remove</button>
-            `;
+                <button onclick="removeUser('${id}', this)">Remove</button>`;
             userContainer.appendChild(div);
         }
-
+    
         function addGoalInput(id = "", text = "") {
             const goalContainer = document.getElementById("goal-container");
             const div = document.createElement("div");
             div.classList.add("item-container");
-            div.innerHTML = `
-                <input type="text" placeholder="Goal" value="${text}">
-                <button onclick="removeGoal('${id}', this)">Remove</button>
-            `;
+            div.setAttribute("data-id", id); // Set data-id to track document ID
+            div.innerHTML = 
+                `<input type="text" placeholder="Goal" value="${text}">
+                <button onclick="removeGoal('${id}', this)">Remove</button>`;
             goalContainer.appendChild(div);
-        }
-
-        // Remove functions for users and goals
-        async function removeUser(id, elem) {
-            if (id) await db.collection("users").doc(id).delete();
-            elem.parentElement.remove();
-        }
-
-        async function removeGoal(id, elem) {
-            if (id) await db.collection("goals").doc(id).delete();
-            elem.parentElement.remove();
-        }
-
-        // Submit Admin Data (add/update users and goals)
-        async function submitAdminData() {
-            const userInputs = document.querySelectorAll("#user-container .item-container");
-            for (let input of userInputs) {
-                const name = input.children[0].value.trim();
-                const password = input.children[1].value.trim();
-                if (name && password) {
-                    await db.collection("users").add({ name, password });
-                }
-            }
-
-            const goalInputs = document.querySelectorAll("#goal-container .item-container");
-            for (let input of goalInputs) {
-                const text = input.children[0].value.trim();
-                if (text) {
-                    await db.collection("goals").add({ text });
-                }
-            }
-
-            alert("Data submitted successfully!");
-            loadAdminData();
         }
     </script>
 </body>
