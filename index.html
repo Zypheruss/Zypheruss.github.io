@@ -225,27 +225,15 @@
                 }
             }
 
-            alert("Data submitted successfully!");
-            loadAdminData();
+            alert("Data submitted successfully.");
         }
 
-        async function loadAdminData() {
-            const userContainer = document.getElementById("user-container");
-            const goalContainer = document.getElementById("goal-container");
-            userContainer.innerHTML = "";
-            goalContainer.innerHTML = "";
+        function addUserInput() {
+            addUserInput("", "", "");
+        }
 
-            const usersSnapshot = await db.collection("users").get();
-            usersSnapshot.forEach((doc) => {
-                const user = doc.data();
-                addUserInput(doc.id, user.name, user.password);
-            });
-
-            const goalsSnapshot = await db.collection("goals").get();
-            goalsSnapshot.forEach((doc) => {
-                const goal = doc.data();
-                addGoalInput(doc.id, goal.text);
-            });
+        function addGoalInput() {
+            addGoalInput("", "");
         }
 
         function addUserInput(id = "", name = "", password = "") {
@@ -276,6 +264,25 @@
         function removeItem(button) {
             const itemContainer = button.parentElement;
             itemContainer.parentElement.removeChild(itemContainer);
+        }
+
+        async function loadAdminData() {
+            const userContainer = document.getElementById("user-container");
+            const goalContainer = document.getElementById("goal-container");
+            userContainer.innerHTML = "";
+            goalContainer.innerHTML = "";
+
+            const usersSnapshot = await db.collection("users").get();
+            usersSnapshot.forEach((doc) => {
+                const user = doc.data();
+                addUserInput(doc.id, user.name, user.password);
+            });
+
+            const goalsSnapshot = await db.collection("goals").get();
+            goalsSnapshot.forEach((doc) => {
+                const goal = doc.data();
+                addGoalInput(doc.id, goal.text);
+            });
         }
 
         // Initial load
