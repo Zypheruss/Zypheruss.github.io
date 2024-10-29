@@ -6,7 +6,7 @@
     <title>Anonymous Goal Reporting with Firebase</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; }
-        #goal-form, #password-section, #punishment-section { margin-top: 20px; }
+        #goal-form, #password-section, #punishment-section, #admin-section { margin-top: 20px; }
         #reporting-section, #punishment-section, #admin-section { display: none; }
         .goal-status, .punishment-status { margin: 10px; padding: 10px; border: 1px solid #ddd; }
         .success { color: green; }
@@ -28,13 +28,6 @@
         <button onclick="checkPassword()">Submit</button>
     </div>
 
-    <!-- Admin Code Section -->
-    <div id="admin-code-section">
-        <p>Enter the admin code to access admin controls:</p>
-        <input type="password" id="admin-code" placeholder="Admin Code">
-        <button onclick="checkAdminCode()">Submit</button>
-    </div>
-
     <!-- Reporting Section -->
     <div id="reporting-section">
         <h2>Anonymous Goal Reporting</h2>
@@ -49,7 +42,10 @@
         </div>
 
         <h3>This Week's Report</h3>
-        <div id="status-display"></div>
+        <div id="status-display">
+            <p><strong>Time since last failed:</strong> <span id="time-since-fail"></span></p>
+            <p><strong>Amount of times failed this week:</strong> <span id="fail-count"></span></p>
+        </div>
 
         <!-- Punishment Section -->
         <div id="punishment-section">
@@ -67,6 +63,13 @@
                 <button onclick="voteUnfair()">Vote Unfair</button>
             </div>
         </div>
+
+        <!-- Change Password Section -->
+        <div id="change-password-section">
+            <h3>Change Password</h3>
+            <input type="password" id="new-password" placeholder="New Password">
+            <button onclick="changePassword()">Change Password</button>
+        </div>
     </div>
 
     <!-- Admin Section -->
@@ -79,6 +82,7 @@
             <div id="user-container"></div>
             <button onclick="addUserInput()">Add User</button>
             <button onclick="resetWeeklyFails()">Clear This Week's Fails</button>
+            <button onclick="randomizePunishmentAssignments()">Randomize Punishment Assignments</button>
         </div>
 
         <!-- Goal Management -->
@@ -94,13 +98,13 @@
     <script>
         // Firebase configuration
         const firebaseConfig = {
-            apiKey: "AIzaSyCXH3CI4YN4fRDH1Wcp_PQQCGBvpp8Dep8",
-            authDomain: "goal-storing.firebaseapp.com",
-            projectId: "goal-storing",
-            storageBucket: "goal-storing.appspot.com",
-            messagingSenderId: "1041018123354",
-            appId: "1:1041018123354:web:497f0baf04deb124ccd463",
-            measurementId: "G-1FPM1DV7KH"
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID",
+            measurementId: "YOUR_MEASUREMENT_ID"
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
@@ -108,34 +112,29 @@
         const adminCode = "admincode"; // Set your admin code here
         let currentUser;
 
-        // Check user password and load data
+        // Check if entered password is admin or user passcode
         async function checkPassword() {
             const inputPass = document.getElementById("password").value.trim();
-            const userDoc = await db.collection("users").where("password", "==", inputPass).get();
-            if (!userDoc.empty) {
-                currentUser = userDoc.docs[0].id;
+            if (inputPass === adminCode) {
                 document.getElementById("password-section").style.display = "none";
-                document.getElementById("reporting-section").style.display = "block";
-                loadGoals();
-                loadPunishmentAssignment();
-            } else {
-                alert("Incorrect passcode.");
-            }
-        }
-
-        // Check admin code for access
-        function checkAdminCode() {
-            const inputCode = document.getElementById("admin-code").value.trim();
-            if (inputCode === adminCode) {
-                document.getElementById("admin-code-section").style.display = "none";
                 document.getElementById("admin-section").style.display = "block";
                 loadAdminData();
             } else {
-                alert("Incorrect admin code.");
+                const userDoc = await db.collection("users").where("password", "==", inputPass).get();
+                if (!userDoc.empty) {
+                    currentUser = userDoc.docs[0].id;
+                    document.getElementById("password-section").style.display = "none";
+                    document.getElementById("reporting-section").style.display = "block";
+                    loadGoals();
+                    loadPunishmentAssignment();
+                    loadWeeklyReport();
+                } else {
+                    alert("Incorrect passcode.");
+                }
             }
         }
 
-        // Load goals for current user
+        // Load goals for the current user
         async function loadGoals() {
             const goalsList = document.getElementById("goals-list");
             goalsList.innerHTML = "";
@@ -149,7 +148,7 @@
             });
         }
 
-        // Load punishment assignment
+        // Load punishment assignment for the week
         async function loadPunishmentAssignment() {
             const assignedUserElem = document.getElementById("assigned-user");
             const assignedPunishmentElem = document.getElementById("assigned-punishment");
@@ -162,18 +161,23 @@
             }
         }
 
-        // Submit weekly goal report
-        async function submitGoalReport() {
-            const failed = document.getElementById("failed-goal").checked;
-            await db.collection("weeklyReports").add({
-                userId: currentUser,
-                failed,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            alert("Report submitted.");
+        // Load weekly report data
+        async function loadWeeklyReport() {
+            const reportSnapshot = await db.collection("weeklyReports")
+                .where("userId", "==", currentUser)
+                .orderBy("timestamp", "desc")
+                .limit(1)
+                .get();
+
+            if (!reportSnapshot.empty) {
+                const reportData = reportSnapshot.docs[0].data();
+                document.getElementById("time-since-fail").textContent = new Date(reportData.timestamp.toDate()).toLocaleString();
+                const failCountSnapshot = await db.collection("weeklyReports").where("userId", "==", currentUser).get();
+                document.getElementById("fail-count").textContent = failCountSnapshot.size;
+            }
         }
 
-        // Submit punishment for the assigned user
+        // Submit punishment for assigned user
         async function submitPunishment() {
             const punishmentText = document.getElementById("punishment-text").value.trim();
             if (!punishmentText) {
@@ -193,6 +197,28 @@
             }
         }
 
+        // Submit weekly goal report
+        async function submitGoalReport() {
+            const failed = document.getElementById("failed-goal").checked;
+            await db.collection("weeklyReports").add({
+                userId: currentUser,
+                failed,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            alert("Report submitted.");
+        }
+
+        // Change user password
+        async function changePassword() {
+            const newPassword = document.getElementById("new-password").value.trim();
+            if (newPassword) {
+                await db.collection("users").doc(currentUser).update({ password: newPassword });
+                alert("Password changed successfully.");
+            } else {
+                alert("New password cannot be empty.");
+            }
+        }
+
         // Cast vote for punishment fairness
         async function voteUnfair() {
             await db.collection("punishmentVotes").add({
@@ -201,40 +227,8 @@
             });
             alert("Vote submitted.");
         }
-        async function submitAdminData() {
-            const userInputs = document.querySelectorAll("#user-container .item-container");
-            for (let input of userInputs) {
-                const id = input.getAttribute("data-id");
-                const name = input.children[0].value.trim();
-                const password = input.children[1].value.trim();
 
-                if (name && password) {
-                    if (id) {
-                        await db.collection("users").doc(id).set({ name, password });
-                    } else {
-                        await db.collection("users").add({ name, password });
-                    }
-                }
-            }
-
-            const goalInputs = document.querySelectorAll("#goal-container .item-container");
-            for (let input of goalInputs) {
-                const id = input.getAttribute("data-id");
-                const text = input.children[0].value.trim();
-
-                if (text) {
-                    if (id) {
-                        await db.collection("goals").doc(id).set({ text });
-                    } else {
-                        await db.collection("goals").add({ text });
-                    }
-                }
-            }
-
-            alert("Data submitted successfully.");
-        }
-
-        // Reset weekly fails (admin function)
+        // Admin function to clear this week's fails
         async function resetWeeklyFails() {
             const failsSnapshot = await db.collection("weeklyReports").get();
             failsSnapshot.forEach(async (doc) => {
@@ -243,7 +237,24 @@
             alert("Weekly fails cleared.");
         }
 
-        // Load admin data
+        // Randomize punishment assignments
+        async function randomizePunishmentAssignments() {
+            const usersSnapshot = await db.collection("users").get();
+            const users = usersSnapshot.docs.map(doc => doc.id);
+            const shuffledUsers = users.sort(() => Math.random() - 0.5);
+
+            for (let i = 0; i < users.length; i++) {
+                const assignedUser = shuffledUsers[(i + 1) % users.length];
+                await db.collection("punishmentAssignments").doc(users[i]).set({
+                    assignedUser,
+                    punishment: ""
+                });
+            }
+            alert("Punishment assignments randomized.");
+            loadAdminData();
+        }
+
+        // Load admin data (users and goals) for editing
         async function loadAdminData() {
             const userContainer = document.getElementById("user-container");
             userContainer.innerHTML = "";
