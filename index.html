@@ -342,60 +342,61 @@
                 alert("Punishment text is required.");
                 return;
             }
-        
+            
             try {
                 // First, get the current user's assignment to find who they should punish
                 const assignmentDoc = await db.collection("punishmentAssignments").doc(currentUser).get();
-                
+            
                 if (!assignmentDoc.exists) {
-                    alert("You don't have any punishment assignment.");
-                    return;
+                      alert("You don't have any punishment assignment.");
+                      return;
                 }
-        
+            
                 const assignment = assignmentDoc.data();
-                
+            
                 // Find the document ID for the assigned user
                 const assignedUserQuery = await db.collection("users")
-                    .where("name", "==", assignment.assignedUser)
-                    .get();
-        
+                  .where("name", "==", assignment.assignedUser)
+                  .get();
+            
                 if (assignedUserQuery.empty) {
                     alert("Could not find the assigned user.");
                     return;
                 }
-        
+            
                 const assignedUserId = assignedUserQuery.docs[0].id;
-        
+            
                 // Check if the punishment assignment document exists for the assigned user
                 const targetAssignmentDoc = await db.collection("punishmentAssignments").doc(assignedUserId).get();
-        
+            
                 if (!targetAssignmentDoc.exists) {
-                    // Create the document if it doesn't exist
+                  // Create the document if it doesn't exist
                     await db.collection("punishmentAssignments").doc(assignedUserId).set({
                         assignedUser: assignment.assignedUser,
                         punishment: punishmentText,
                         assignedBy: currentUser,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    });
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        votes: 0 // Initialize votes to 0
+                  });
                 } else {
-                    // Update the existing document
-                    await db.collection("punishmentAssignments").doc(assignedUserId).update({
+                  // Update the existing document
+                  await db.collection("punishmentAssignments").doc(assignedUserId).update({
                         punishment: punishmentText,
                         assignedBy: currentUser,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    });
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        votes: 0 // Reset votes to 0
+                  });
                 }
-        
+            
                 alert("Punishment submitted successfully.");
                 document.getElementById("punishment-text").value = "";
                 loadPunishmentAssignment();
-                
-            } catch (error) {
+                loadPunishmentVotes(); // Reload the punishment votes to reflect the updated data
+              } catch (error) {
                 console.error("Error submitting punishment:", error);
                 alert("Error submitting punishment. Please try again.");
+              }
             }
-        }
-
         // Submit weekly goal report
         async function submitGoalReport() {
             const failedGoals = [];
