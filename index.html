@@ -32,23 +32,22 @@
         
         .goal-item {
             margin: 10px 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            text-align: center;
+            justify-content: center;
         }
         
         .submit-votes-btn {
             margin-top: 20px;
             padding: 8px 16px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
+            background-color: #f4f4f4;
+            color: black;
+            border: 1px solid #ddd;
+            border-radius: 0;
             cursor: pointer;
         }
         
         .submit-votes-btn:hover {
-            background-color: #45a049;
+            background-color: #e7e7e7;
         }
     </style>
     <!-- Firebase SDK v8 -->
@@ -176,7 +175,6 @@
             goalsList.innerHTML = "<h4>Your Goals:</h4>";
             
             try {
-                // Get all goals that are either global or assigned to the current user
                 const goalsSnapshot = await db.collection("goals")
                     .where("userId", "in", [currentUser, "global"])
                     .get();
@@ -186,8 +184,7 @@
                     const goalDiv = document.createElement("div");
                     goalDiv.classList.add("goal-item");
                     goalDiv.innerHTML = `
-                        <input type="checkbox" id="goal-${doc.id}" class="goal-checkbox">
-                        <label for="goal-${doc.id}">${goal.text}${goal.userId === 'global' ? ' (Global)' : ''}</label>
+                        <span>${goal.text}${goal.userId === 'global' ? ' (Global)' : ''}</span>
                     `;
                     goalsList.appendChild(goalDiv);
                 });
@@ -221,13 +218,17 @@
                 for (const doc of assignmentsSnapshot.docs) {
                     const assignment = doc.data();
                     if (assignment.punishment) {
+                        // Get the user who is assigning the punishment
+                        const assignerDoc = await db.collection("users").doc(doc.id).get();
+                        const assignerName = assignerDoc.exists ? assignerDoc.data().name : "Unknown User";
+                        
                         const votesSnapshot = await db.collection("punishmentVotes")
                             .where("assignmentId", "==", doc.id)
                             .get();
                         
                         const row = document.createElement("tr");
                         row.innerHTML = `
-                            <td>${assignment.assignedUser}</td>
+                            <td>${assignerName}</td>
                             <td>${assignment.punishment}</td>
                             <td>${votesSnapshot.size} votes</td>
                             <td>
