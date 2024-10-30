@@ -13,13 +13,49 @@
         .fail { color: red; }
         .item-container { margin-bottom: 15px; }
         .item-container input { margin-right: 10px; }
+        .punishment-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        .punishment-table th,
+        .punishment-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        
+        .punishment-table th {
+            background-color: #f4f4f4;
+        }
+        
+        .goal-item {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .submit-votes-btn {
+            margin-top: 20px;
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .submit-votes-btn:hover {
+            background-color: #45a049;
+        }
     </style>
     <!-- Firebase SDK v8 -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 </head>
 <body>
-
     <!-- Password Section -->
     <div id="password-section">
         <p>Enter your unique passcode:</p>
@@ -136,37 +172,86 @@
         // Load goals for the current user
         async function loadGoals() {
             const goalsList = document.getElementById("goals-list");
-            goalsList.innerHTML = "";
-            const goalsSnapshot = await db.collection("goals").where("userId", "==", currentUser).get();
-            goalsSnapshot.forEach((doc) => {
-                const goal = doc.data();
-                const goalElem = document.createElement("div");
-                goalElem.classList.add("goal-status");
-                goalElem.innerHTML = `Goal: ${goal.text}`;
-                goalsList.appendChild(goalElem);
-            });
+            goalsList.innerHTML = "<h4>Your Goals:</h4>";
+            
+            try {
+                // Get all goals for the current user
+                const goalsSnapshot = await db.collection("goals")
+                    .where("userId", "==", currentUser)
+                    .get();
+                
+                goalsSnapshot.forEach((doc) => {
+                    const goal = doc.data();
+                    const goalDiv = document.createElement("div");
+                    goalDiv.classList.add("goal-item");
+                    goalDiv.innerHTML = `
+                        <input type="checkbox" id="goal-${doc.id}" class="goal-checkbox">
+                        <label for="goal-${doc.id}">${goal.text}</label>
+                    `;
+                    goalsList.appendChild(goalDiv);
+                });
+            } catch (error) {
+                console.error("Error loading goals:", error);
+                alert("Error loading goals. Please try again.");
+            }
         }
         async function loadPunishmentVotes() {
             const votingSection = document.getElementById("voting-section");
-            votingSection.innerHTML = "<h4>Vote if punishments are unfair</h4>";
+            votingSection.innerHTML = `
+                <h4>Vote on Unfair Punishments</h4>
+                <table class="punishment-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Punishment</th>
+                            <th>Votes</th>
+                            <th>Vote Unfair</th>
+                        </tr>
+                    </thead>
+                    <tbody id="punishment-votes-body"></tbody>
+                </table>
+                <button onclick="submitUnfairVotes()" class="submit-votes-btn">Submit Votes</button>
+            `;
         
-            const punishmentsSnapshot = await db.collection("punishmentAssignments").get();
-            punishmentsSnapshot.forEach(doc => {
-                const assignment = doc.data();
-                const punishmentDiv = document.createElement("div");
+            try {
+                const assignmentsSnapshot = await db.collection("punishmentAssignments").get();
+                const tbody = document.getElementById("punishment-votes-body");
                 
-                if (assignment.punishment) {
-                    punishmentDiv.innerHTML = `
-                        <p><strong>${assignment.assignedUser}:</strong> ${assignment.punishment}</p>
-                        <input type="checkbox" onclick="voteUnfair('${doc.id}')"> Unfair
-                    `;
-                } else {
-                    punishmentDiv.innerHTML = `<p><strong>${assignment.assignedUser}:</strong> Not set</p>`;
+                for (const doc of assignmentsSnapshot.docs) {
+                    const assignment = doc.data();
+                    if (assignment.punishment) {
+                        const votesSnapshot = await db.collection("punishmentVotes")
+                            .where("assignmentId", "==", doc.id)
+                            .get();
+                        
+                        const row = document.createElement("tr");
+                        row.innerHTML = `
+                            <td>${assignment.assignedUser}</td>
+                            <td>${assignment.punishment}</td>
+                            <td>${votesSnapshot.size} votes</td>
+                            <td>
+                                <input type="checkbox" 
+                                       class="unfair-vote" 
+                                       data-assignment-id="${doc.id}"
+                                       ${await hasUserVoted(doc.id) ? 'checked disabled' : ''}>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    }
                 }
-        
-                votingSection.appendChild(punishmentDiv);
-            });
+            } catch (error) {
+                console.error("Error loading punishment votes:", error);
+                alert("Error loading punishment votes. Please try again.");
+            }
         }
+        async function hasUserVoted(assignmentId) {
+            const voteSnapshot = await db.collection("punishmentVotes")
+                .where("assignmentId", "==", assignmentId)
+                .where("userId", "==", currentUser)
+                .get();
+            return !voteSnapshot.empty;
+        }
+
         async function submitAdminData() {
             const userInputs = document.querySelectorAll("#user-container .item-container");
             for (let input of userInputs) {
@@ -305,13 +390,66 @@
 
         // Submit weekly goal report
         async function submitGoalReport() {
-            const failed = document.getElementById("failed-goal").checked;
-            await db.collection("weeklyReports").add({
-                userId: currentUser,
-                failed,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            const failedGoals = [];
+            document.querySelectorAll('.goal-checkbox:checked').forEach(checkbox => {
+                failedGoals.push(checkbox.id.replace('goal-', ''));
             });
-            alert("Report submitted.");
+        
+            try {
+                await db.collection("weeklyReports").add({
+                    userId: currentUser,
+                    failedGoals: failedGoals,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                alert("Report submitted successfully.");
+                loadWeeklyReport();
+            } catch (error) {
+                console.error("Error submitting report:", error);
+                alert("Error submitting report. Please try again.");
+            }
+        }
+        async function submitUnfairVotes() {
+            try {
+                const checkboxes = document.querySelectorAll('.unfair-vote:checked:not([disabled])');
+                const batch = db.batch();
+                
+                for (const checkbox of checkboxes) {
+                    const assignmentId = checkbox.dataset.assignmentId;
+                    
+                    // Add vote
+                    const voteRef = db.collection("punishmentVotes").doc();
+                    batch.set(voteRef, {
+                        assignmentId,
+                        userId: currentUser,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    
+                    // Check if majority reached
+                    const votesSnapshot = await db.collection("punishmentVotes")
+                        .where("assignmentId", "==", assignmentId)
+                        .get();
+                    
+                    const usersSnapshot = await db.collection("users").get();
+                    const totalUsers = usersSnapshot.size;
+                    
+                    if (votesSnapshot.size + 1 > totalUsers / 2) {
+                        // Majority reached, reset punishment
+                        const assignmentRef = db.collection("punishmentAssignments").doc(assignmentId);
+                        batch.update(assignmentRef, {
+                            punishment: "",
+                            votes: 0
+                        });
+                    }
+                }
+        
+                await batch.commit();
+                alert("Votes submitted successfully.");
+                loadPunishmentVotes();
+                
+            } catch (error) {
+                console.error("Error submitting votes:", error);
+                alert("Error submitting votes. Please try again.");
+            }
         }
 
         // Change user password
@@ -366,23 +504,37 @@
                     return;
                 }
         
-                let shuffledUsers;
-                do {
-                    shuffledUsers = users.slice().sort(() => Math.random() - 0.5);
-                } while (shuffledUsers.some((user, i) => user.id === users[i].id));
-        
-                // Create a batch for atomic operations
-                const batch = db.batch();
-        
-                for (let i = 0; i < users.length; i++) {
-                    const assignedUser = shuffledUsers[(i + 1) % users.length];
-                    const docRef = db.collection("punishmentAssignments").doc(users[i].id);
+                // Create assignments ensuring no self-assignments
+                const assignments = [];
+                const available = [...users];
+                
+                for (const user of users) {
+                    const validTargets = available.filter(target => target.id !== user.id);
+                    if (validTargets.length === 0) {
+                        // If we reach a point where only self-assignment is possible,
+                        // we need to shuffle and start over
+                        return randomizePunishmentAssignments();
+                    }
                     
+                    const randomIndex = Math.floor(Math.random() * validTargets.length);
+                    const target = validTargets[randomIndex];
+                    assignments.push({ assigner: user, target });
+                    
+                    // Remove the assigned target from available users
+                    const targetIndex = available.findIndex(u => u.id === target.id);
+                    available.splice(targetIndex, 1);
+                }
+        
+                // Save assignments to Firebase
+                const batch = db.batch();
+                for (const assignment of assignments) {
+                    const docRef = db.collection("punishmentAssignments").doc(assignment.assigner.id);
                     batch.set(docRef, {
-                        assignedUser: assignedUser.name,
-                        assignedUserId: assignedUser.id,
+                        assignedUser: assignment.target.name,
+                        assignedUserId: assignment.target.id,
                         punishment: "",
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        votes: 0
                     });
                 }
         
@@ -436,17 +588,40 @@
             elem.parentElement.remove();
         }
 
-        function addGoalInput(id = "", text = "") {
+        function addGoalInput(id = "", text = "", userId = "") {
             const goalContainer = document.getElementById("goal-container");
             const div = document.createElement("div");
             div.classList.add("item-container");
             div.setAttribute("data-id", id);
             div.innerHTML = `
                 <input type="text" placeholder="Goal" value="${text}">
+                <select class="user-select">
+                    <option value="">Select User</option>
+                </select>
                 <button onclick="removeGoal('${id}', this)">Remove</button>
             `;
+            
+            // Populate user select
+            const select = div.querySelector('.user-select');
+            loadUserOptions(select, userId);
+            
             goalContainer.appendChild(div);
         }
+        async function loadUserOptions(select, selectedUserId = "") {
+            try {
+                const usersSnapshot = await db.collection("users").get();
+                usersSnapshot.forEach(doc => {
+                    const option = document.createElement("option");
+                    option.value = doc.id;
+                    option.text = doc.data().name;
+                    option.selected = doc.id === selectedUserId;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error("Error loading users:", error);
+            }
+        }
+        
     </script>
 </body>
 </html>
