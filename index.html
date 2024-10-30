@@ -172,7 +172,6 @@
         // Load goals for the current user
         async function loadGoals() {
             const goalsList = document.getElementById("goals-list");
-            goalsList.innerHTML = "<h4>Your Goals:</h4>";
             
             try {
                 const goalsSnapshot = await db.collection("goals")
