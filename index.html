@@ -163,6 +163,7 @@
                     loadGoals();
                     loadPunishmentAssignment();
                     loadWeeklyReport();
+                    loadPunishmentVotes();
                 } else {
                     alert("Incorrect passcode.");
                 }
@@ -175,9 +176,9 @@
             goalsList.innerHTML = "<h4>Your Goals:</h4>";
             
             try {
-                // Get all goals for the current user
+                // Get all goals that are either global or assigned to the current user
                 const goalsSnapshot = await db.collection("goals")
-                    .where("userId", "==", currentUser)
+                    .where("userId", "in", [currentUser, "global"])
                     .get();
                 
                 goalsSnapshot.forEach((doc) => {
@@ -186,7 +187,7 @@
                     goalDiv.classList.add("goal-item");
                     goalDiv.innerHTML = `
                         <input type="checkbox" id="goal-${doc.id}" class="goal-checkbox">
-                        <label for="goal-${doc.id}">${goal.text}</label>
+                        <label for="goal-${doc.id}">${goal.text}${goal.userId === 'global' ? ' (Global)' : ''}</label>
                     `;
                     goalsList.appendChild(goalDiv);
                 });
@@ -258,7 +259,7 @@
                 const id = input.getAttribute("data-id");
                 const name = input.children[0].value.trim();
                 const password = input.children[1].value.trim();
-
+        
                 if (name && password) {
                     if (id) {
                         await db.collection("users").doc(id).set({ name, password });
@@ -267,21 +268,28 @@
                     }
                 }
             }
-
+        
+            // Modified goals handling
             const goalInputs = document.querySelectorAll("#goal-container .item-container");
             for (let input of goalInputs) {
                 const id = input.getAttribute("data-id");
                 const text = input.children[0].value.trim();
-
-                if (text) {
+                const userId = input.querySelector('.user-select').value;
+        
+                if (text && userId) {
+                    const goalData = {
+                        text,
+                        userId: userId === 'global' ? 'global' : userId
+                    };
+        
                     if (id) {
-                        await db.collection("goals").doc(id).set({ text });
+                        await db.collection("goals").doc(id).set(goalData);
                     } else {
-                        await db.collection("goals").add({ text });
+                        await db.collection("goals").add(goalData);
                     }
                 }
             }
-
+        
             alert("Data submitted successfully.");
         }
 
@@ -597,6 +605,7 @@
                 <input type="text" placeholder="Goal" value="${text}">
                 <select class="user-select">
                     <option value="">Select User</option>
+                    <option value="global">Global (All Users)</option>
                 </select>
                 <button onclick="removeGoal('${id}', this)">Remove</button>
             `;
