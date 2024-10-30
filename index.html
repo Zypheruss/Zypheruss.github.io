@@ -204,17 +204,21 @@
         async function loadPunishmentAssignment() {
             const assignedUserElem = document.getElementById("assigned-user");
             const assignedPunishmentElem = document.getElementById("assigned-punishment");
-    
-            const assignmentDoc = await db.collection("punishmentAssignments").doc(currentUser).get();
-            if (assignmentDoc.exists) {
-                const assignment = assignmentDoc.data();
-                assignedUserElem.textContent = assignment.assignedUser || "No user assigned";
-                assignedPunishmentElem.textContent = assignment.punishment || "Not assigned yet.";
-    
-                // Ensure punishment-section is displayed if assignment data exists
-                document.getElementById("punishment-section").style.display = "block";
-            } else {
-                console.log("No punishment assignment found for current user.");
+        
+            try {
+                const assignmentDoc = await db.collection("punishmentAssignments").doc(currentUser).get();
+                if (assignmentDoc.exists) {
+                    const assignment = assignmentDoc.data();
+                    assignedUserElem.textContent = assignment.assignedUser || "No user assigned";
+                    assignedPunishmentElem.textContent = assignment.punishment || "Not assigned yet.";
+                    document.getElementById("punishment-section").style.display = "block";
+                } else {
+                    console.log("No punishment assignment found for current user.");
+                    document.getElementById("punishment-section").style.display = "none";
+                }
+            } catch (error) {
+                console.error("Error loading punishment assignment:", error);
+                alert("Error loading punishment assignment. Please try again.");
             }
         }
 
@@ -245,18 +249,57 @@
                 alert("Punishment text is required.");
                 return;
             }
-    
-            const assignmentDoc = await db.collection("punishmentAssignments").doc(currentUser).get();
-            if (assignmentDoc.exists) {
-                const assignedUser = assignmentDoc.data().assignedUserId;
-                await db.collection("punishmentAssignments").doc(assignedUser).update({
-                    punishment: punishmentText
-                });
-                alert("Punishment submitted.");
+        
+            try {
+                // First, get the current user's assignment to find who they should punish
+                const assignmentDoc = await db.collection("punishmentAssignments").doc(currentUser).get();
+                
+                if (!assignmentDoc.exists) {
+                    alert("You don't have any punishment assignment.");
+                    return;
+                }
+        
+                const assignment = assignmentDoc.data();
+                
+                // Find the document ID for the assigned user
+                const assignedUserQuery = await db.collection("users")
+                    .where("name", "==", assignment.assignedUser)
+                    .get();
+        
+                if (assignedUserQuery.empty) {
+                    alert("Could not find the assigned user.");
+                    return;
+                }
+        
+                const assignedUserId = assignedUserQuery.docs[0].id;
+        
+                // Check if the punishment assignment document exists for the assigned user
+                const targetAssignmentDoc = await db.collection("punishmentAssignments").doc(assignedUserId).get();
+        
+                if (!targetAssignmentDoc.exists) {
+                    // Create the document if it doesn't exist
+                    await db.collection("punishmentAssignments").doc(assignedUserId).set({
+                        assignedUser: assignment.assignedUser,
+                        punishment: punishmentText,
+                        assignedBy: currentUser,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } else {
+                    // Update the existing document
+                    await db.collection("punishmentAssignments").doc(assignedUserId).update({
+                        punishment: punishmentText,
+                        assignedBy: currentUser,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+        
+                alert("Punishment submitted successfully.");
+                document.getElementById("punishment-text").value = "";
                 loadPunishmentAssignment();
-            } else {
-                console.log("No punishment assignment document exists for the current user.");
-                alert("No punishment assignment available for submission.");
+                
+            } catch (error) {
+                console.error("Error submitting punishment:", error);
+                alert("Error submitting punishment. Please try again.");
             }
         }
 
@@ -314,26 +357,45 @@
         }
 
         async function randomizePunishmentAssignments() {
-            const usersSnapshot = await db.collection("users").get();
-            const users = usersSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
-            let shuffledUsers;
-    
-            do {
-                shuffledUsers = users.slice().sort(() => Math.random() - 0.5);
-            } while (shuffledUsers.some((user, i) => user.id === users[i].id));
-    
-            for (let i = 0; i < users.length; i++) {
-                const assignedUser = shuffledUsers[(i + 1) % users.length];
-                await db.collection("punishmentAssignments").doc(users[i].id).set({
-                    assignedUser: assignedUser.name,
-                    punishment: ""
-                });
+            try {
+                const usersSnapshot = await db.collection("users").get();
+                const users = usersSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
+                
+                if (users.length < 2) {
+                    alert("Need at least 2 users to assign punishments.");
+                    return;
+                }
+        
+                let shuffledUsers;
+                do {
+                    shuffledUsers = users.slice().sort(() => Math.random() - 0.5);
+                } while (shuffledUsers.some((user, i) => user.id === users[i].id));
+        
+                // Create a batch for atomic operations
+                const batch = db.batch();
+        
+                for (let i = 0; i < users.length; i++) {
+                    const assignedUser = shuffledUsers[(i + 1) % users.length];
+                    const docRef = db.collection("punishmentAssignments").doc(users[i].id);
+                    
+                    batch.set(docRef, {
+                        assignedUser: assignedUser.name,
+                        assignedUserId: assignedUser.id,
+                        punishment: "",
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+        
+                await batch.commit();
+                alert("Punishment assignments randomized successfully.");
+                loadAdminData();
+                
+            } catch (error) {
+                console.error("Error randomizing assignments:", error);
+                alert("Error randomizing assignments. Please try again.");
             }
-            alert("Punishment assignments randomized.");
-            loadAdminData();
         }
-
-
+        
         // Load admin data (users and goals) for editing
         async function loadAdminData() {
             const userContainer = document.getElementById("user-container");
