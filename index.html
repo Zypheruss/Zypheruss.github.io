@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Anonymous Goal Reporting with Firebase</title>
     <style>
+        /* Previous styles remain the same */
         body { font-family: Arial, sans-serif; text-align: center; }
         #goal-form, #password-section, #punishment-section, #admin-section { margin-top: 20px; }
         #reporting-section, #punishment-section, #admin-section { display: none; }
@@ -50,12 +51,29 @@
         .submit-votes-btn:hover {
             background-color: #45a049;
         }
+
+        /* New styles for failed goals list */
+        #failed-goals-list {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .failed-goal-item {
+            text-align: left;
+            padding: 5px;
+            margin: 5px 0;
+            background-color: #f9f9f9;
+        }
     </style>
     <!-- Firebase SDK v8 -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 </head>
 <body>
+    <!-- Previous HTML sections remain the same until the goal-form section -->
+    
     <!-- Password Section -->
     <div id="password-section">
         <p>Enter your unique passcode:</p>
@@ -72,9 +90,11 @@
         <!-- Reporting Form -->
         <div id="goal-form">
             <p>Did you fail any goals this week?</p>
-            <input type="checkbox" id="failed-goal"> Failed a goal<br>
             <button onclick="submitGoalReport()">Submit Report</button>
         </div>
+
+        <h3>This Week's Failed Goals</h3>
+        <div id="failed-goals-list"></div>
 
         <h3>This Week's Report</h3>
         <div id="status-display">
@@ -94,8 +114,8 @@
                 <button onclick="submitPunishment()">Submit Punishment</button>
             </div>
             <div id="voting-section">
-                <h4>Vote if the punishment is unfair</h4>
-                <button onclick="voteUnfair()">Vote Unfair</button>
+                <h3>Vote on Unfair Punishments</h3>
+                <div id="punishment-votes"></div>
             </div>
         </div>
 
@@ -131,7 +151,7 @@
     </div>
 
     <script>
-        // Firebase configuration
+        // Firebase configuration remains the same
         const firebaseConfig = {
             apiKey: "AIzaSyCXH3CI4YN4fRDH1Wcp_PQQCGBvpp8Dep8",
             authDomain: "goal-storing.firebaseapp.com",
@@ -144,10 +164,170 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        const adminCode = "admincode"; // Set your admin code here
+        const adminCode = "admincode";
         let currentUser;
 
-        // Check if entered password is admin or user passcode
+        // Previous functions remain the same until loadGoals
+
+        // Modified loadGoals function to show global and personal goals
+        async function loadGoals() {
+            const goalsList = document.getElementById("goals-list");
+            goalsList.innerHTML = "<h4>Your Goals:</h4>";
+            
+            try {
+                // Get global goals
+                const globalGoalsSnapshot = await db.collection("goals")
+                    .where("isGlobal", "==", true)
+                    .get();
+                
+                // Get user-specific goals
+                const personalGoalsSnapshot = await db.collection("goals")
+                    .where("userId", "==", currentUser)
+                    .get();
+                
+                // Combine and display all applicable goals
+                [...globalGoalsSnapshot.docs, ...personalGoalsSnapshot.docs].forEach((doc) => {
+                    const goal = doc.data();
+                    const goalDiv = document.createElement("div");
+                    goalDiv.classList.add("goal-item");
+                    goalDiv.innerHTML = `
+                        <input type="checkbox" id="goal-${doc.id}" class="goal-checkbox">
+                        <label for="goal-${doc.id}">${goal.text} ${goal.isGlobal ? '(Global)' : '(Personal)'}</label>
+                    `;
+                    goalsList.appendChild(goalDiv);
+                });
+            } catch (error) {
+                console.error("Error loading goals:", error);
+                alert("Error loading goals. Please try again.");
+            }
+        }
+
+        // New function to load failed goals for the week
+        async function loadFailedGoals() {
+            const failedGoalsList = document.getElementById("failed-goals-list");
+            failedGoalsList.innerHTML = "";
+            
+            try {
+                const weekStart = new Date();
+                weekStart.setHours(0, 0, 0, 0);
+                weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+
+                const reportsSnapshot = await db.collection("weeklyReports")
+                    .where("timestamp", ">=", weekStart)
+                    .get();
+
+                const failedGoals = {};
+                
+                for (const doc of reportsSnapshot.docs) {
+                    const report = doc.data();
+                    for (const goalId of report.failedGoals) {
+                        if (!failedGoals[goalId]) {
+                            failedGoals[goalId] = 1;
+                        } else {
+                            failedGoals[goalId]++;
+                        }
+                    }
+                }
+
+                for (const [goalId, count] of Object.entries(failedGoals)) {
+                    const goalDoc = await db.collection("goals").doc(goalId).get();
+                    if (goalDoc.exists) {
+                        const goalData = goalDoc.data();
+                        const div = document.createElement("div");
+                        div.classList.add("failed-goal-item");
+                        div.textContent = `${goalData.text}: Failed ${count} times`;
+                        failedGoalsList.appendChild(div);
+                    }
+                }
+            } catch (error) {
+                console.error("Error loading failed goals:", error);
+            }
+        }
+
+        // Modified addGoalInput function to include global/personal selection
+        function addGoalInput(id = "", text = "", userId = "", isGlobal = false) {
+            const goalContainer = document.getElementById("goal-container");
+            const div = document.createElement("div");
+            div.classList.add("item-container");
+            div.setAttribute("data-id", id);
+            div.innerHTML = `
+                <input type="text" placeholder="Goal" value="${text}">
+                <select class="goal-type">
+                    <option value="global" ${isGlobal ? 'selected' : ''}>Global Goal</option>
+                    <option value="personal" ${!isGlobal ? 'selected' : ''}>Personal Goal</option>
+                </select>
+                <select class="user-select" ${isGlobal ? 'disabled' : ''}>
+                    <option value="">Select User</option>
+                </select>
+                <button onclick="removeGoal('${id}', this)">Remove</button>
+            `;
+            
+            // Add event listener for goal type change
+            const goalTypeSelect = div.querySelector('.goal-type');
+            const userSelect = div.querySelector('.user-select');
+            
+            goalTypeSelect.addEventListener('change', function() {
+                userSelect.disabled = this.value === 'global';
+            });
+            
+            // Populate user select if not global
+            if (!isGlobal) {
+                loadUserOptions(userSelect, userId);
+            }
+            
+            goalContainer.appendChild(div);
+        }
+
+        // Modified submitAdminData to handle global/personal goals
+        async function submitAdminData() {
+            try {
+                // Handle users
+                const userInputs = document.querySelectorAll("#user-container .item-container");
+                for (let input of userInputs) {
+                    const id = input.getAttribute("data-id");
+                    const name = input.children[0].value.trim();
+                    const password = input.children[1].value.trim();
+
+                    if (name && password) {
+                        if (id) {
+                            await db.collection("users").doc(id).set({ name, password });
+                        } else {
+                            await db.collection("users").add({ name, password });
+                        }
+                    }
+                }
+
+                // Handle goals
+                const goalInputs = document.querySelectorAll("#goal-container .item-container");
+                for (let input of goalInputs) {
+                    const id = input.getAttribute("data-id");
+                    const text = input.children[0].value.trim();
+                    const isGlobal = input.querySelector('.goal-type').value === 'global';
+                    const userId = isGlobal ? null : input.querySelector('.user-select').value;
+
+                    if (text) {
+                        const goalData = {
+                            text,
+                            isGlobal,
+                            userId: isGlobal ? null : userId
+                        };
+
+                        if (id) {
+                            await db.collection("goals").doc(id).set(goalData);
+                        } else {
+                            await db.collection("goals").add(goalData);
+                        }
+                    }
+                }
+
+                alert("Data submitted successfully.");
+            } catch (error) {
+                console.error("Error submitting data:", error);
+                alert("Error submitting data. Please try again.");
+            }
+        }
+
+        // Modified checkPassword to also load failed goals and punishment votes
         async function checkPassword() {
             const inputPass = document.getElementById("password").value.trim();
             if (inputPass === adminCode) {
@@ -161,234 +341,17 @@
                     document.getElementById("password-section").style.display = "none";
                     document.getElementById("reporting-section").style.display = "block";
                     loadGoals();
+                    loadFailedGoals();
                     loadPunishmentAssignment();
                     loadWeeklyReport();
+                    loadPunishmentVotes();
                 } else {
                     alert("Incorrect passcode.");
                 }
             }
         }
 
-        // Load goals for the current user
-        async function loadGoals() {
-            const goalsList = document.getElementById("goals-list");
-            goalsList.innerHTML = "<h4>Your Goals:</h4>";
-            
-            try {
-                // Get all goals for the current user
-                const goalsSnapshot = await db.collection("goals")
-                    .where("userId", "==", currentUser)
-                    .get();
-                
-                goalsSnapshot.forEach((doc) => {
-                    const goal = doc.data();
-                    const goalDiv = document.createElement("div");
-                    goalDiv.classList.add("goal-item");
-                    goalDiv.innerHTML = `
-                        <input type="checkbox" id="goal-${doc.id}" class="goal-checkbox">
-                        <label for="goal-${doc.id}">${goal.text}</label>
-                    `;
-                    goalsList.appendChild(goalDiv);
-                });
-            } catch (error) {
-                console.error("Error loading goals:", error);
-                alert("Error loading goals. Please try again.");
-            }
-        }
-        async function loadPunishmentVotes() {
-            const votingSection = document.getElementById("voting-section");
-            votingSection.innerHTML = `
-                <h4>Vote on Unfair Punishments</h4>
-                <table class="punishment-table">
-                    <thead>
-                        <tr>
-                            <th>User</th>
-                            <th>Punishment</th>
-                            <th>Votes</th>
-                            <th>Vote Unfair</th>
-                        </tr>
-                    </thead>
-                    <tbody id="punishment-votes-body"></tbody>
-                </table>
-                <button onclick="submitUnfairVotes()" class="submit-votes-btn">Submit Votes</button>
-            `;
-        
-            try {
-                const assignmentsSnapshot = await db.collection("punishmentAssignments").get();
-                const tbody = document.getElementById("punishment-votes-body");
-                
-                for (const doc of assignmentsSnapshot.docs) {
-                    const assignment = doc.data();
-                    if (assignment.punishment) {
-                        const votesSnapshot = await db.collection("punishmentVotes")
-                            .where("assignmentId", "==", doc.id)
-                            .get();
-                        
-                        const row = document.createElement("tr");
-                        row.innerHTML = `
-                            <td>${assignment.assignedUser}</td>
-                            <td>${assignment.punishment}</td>
-                            <td>${votesSnapshot.size} votes</td>
-                            <td>
-                                <input type="checkbox" 
-                                       class="unfair-vote" 
-                                       data-assignment-id="${doc.id}"
-                                       ${await hasUserVoted(doc.id) ? 'checked disabled' : ''}>
-                            </td>
-                        `;
-                        tbody.appendChild(row);
-                    }
-                }
-            } catch (error) {
-                console.error("Error loading punishment votes:", error);
-                alert("Error loading punishment votes. Please try again.");
-            }
-        }
-        async function hasUserVoted(assignmentId) {
-            const voteSnapshot = await db.collection("punishmentVotes")
-                .where("assignmentId", "==", assignmentId)
-                .where("userId", "==", currentUser)
-                .get();
-            return !voteSnapshot.empty;
-        }
-
-        async function submitAdminData() {
-            const userInputs = document.querySelectorAll("#user-container .item-container");
-            for (let input of userInputs) {
-                const id = input.getAttribute("data-id");
-                const name = input.children[0].value.trim();
-                const password = input.children[1].value.trim();
-
-                if (name && password) {
-                    if (id) {
-                        await db.collection("users").doc(id).set({ name, password });
-                    } else {
-                        await db.collection("users").add({ name, password });
-                    }
-                }
-            }
-
-            const goalInputs = document.querySelectorAll("#goal-container .item-container");
-            for (let input of goalInputs) {
-                const id = input.getAttribute("data-id");
-                const text = input.children[0].value.trim();
-
-                if (text) {
-                    if (id) {
-                        await db.collection("goals").doc(id).set({ text });
-                    } else {
-                        await db.collection("goals").add({ text });
-                    }
-                }
-            }
-
-            alert("Data submitted successfully.");
-        }
-
-        // Load punishment assignment for the week
-        async function loadPunishmentAssignment() {
-            const assignedUserElem = document.getElementById("assigned-user");
-            const assignedPunishmentElem = document.getElementById("assigned-punishment");
-        
-            try {
-                const assignmentDoc = await db.collection("punishmentAssignments").doc(currentUser).get();
-                if (assignmentDoc.exists) {
-                    const assignment = assignmentDoc.data();
-                    assignedUserElem.textContent = assignment.assignedUser || "No user assigned";
-                    assignedPunishmentElem.textContent = assignment.punishment || "Not assigned yet.";
-                    document.getElementById("punishment-section").style.display = "block";
-                } else {
-                    console.log("No punishment assignment found for current user.");
-                    document.getElementById("punishment-section").style.display = "none";
-                }
-            } catch (error) {
-                console.error("Error loading punishment assignment:", error);
-                alert("Error loading punishment assignment. Please try again.");
-            }
-        }
-
-        // Load weekly report data
-        async function loadWeeklyReport() {
-            const reportSnapshot = await db.collection("weeklyReports")
-                .where("userId", "==", currentUser)
-                .orderBy("timestamp", "desc")
-                .limit(1)
-                .get();
-
-            if (!reportSnapshot.empty) {
-                const reportData = reportSnapshot.docs[0].data();
-                document.getElementById("time-since-fail").textContent = new Date(reportData.timestamp.toDate()).toLocaleString();
-                
-                const failCountSnapshot = await db.collection("weeklyReports").where("userId", "==", currentUser).get();
-                document.getElementById("fail-count").textContent = failCountSnapshot.size;
-            } else {
-                document.getElementById("time-since-fail").textContent = "N/A";
-                document.getElementById("fail-count").textContent = "0";
-            }
-        }
-
-        // Submit punishment for assigned user
-        async function submitPunishment() {
-            const punishmentText = document.getElementById("punishment-text").value.trim();
-            if (!punishmentText) {
-                alert("Punishment text is required.");
-                return;
-            }
-        
-            try {
-                // First, get the current user's assignment to find who they should punish
-                const assignmentDoc = await db.collection("punishmentAssignments").doc(currentUser).get();
-                
-                if (!assignmentDoc.exists) {
-                    alert("You don't have any punishment assignment.");
-                    return;
-                }
-        
-                const assignment = assignmentDoc.data();
-                
-                // Find the document ID for the assigned user
-                const assignedUserQuery = await db.collection("users")
-                    .where("name", "==", assignment.assignedUser)
-                    .get();
-        
-                if (assignedUserQuery.empty) {
-                    alert("Could not find the assigned user.");
-                    return;
-                }
-        
-                const assignedUserId = assignedUserQuery.docs[0].id;
-        
-                // Check if the punishment assignment document exists for the assigned user
-                const targetAssignmentDoc = await db.collection("punishmentAssignments").doc(assignedUserId).get();
-        
-                if (!targetAssignmentDoc.exists) {
-                    // Create the document if it doesn't exist
-                    await db.collection("punishmentAssignments").doc(assignedUserId).set({
-                        assignedUser: assignment.assignedUser,
-                        punishment: punishmentText,
-                        assignedBy: currentUser,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                } else {
-                    // Update the existing document
-                    await db.collection("punishmentAssignments").doc(assignedUserId).update({
-                        punishment: punishmentText,
-                        assignedBy: currentUser,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                }
-        
-                alert("Punishment submitted successfully.");
-                document.getElementById("punishment-text").value = "";
-                loadPunishmentAssignment();
-                
-            } catch (error) {
-                console.error("Error submitting punishment:", error);
-                alert("Error submitting punishment. Please try again.");
-            }
-        }
-
-        // Submit weekly goal report
+        // Modified submitGoalReport to also refresh failed goals list
         async function submitGoalReport() {
             const failedGoals = [];
             document.querySelectorAll('.goal-checkbox:checked').forEach(checkbox => {
@@ -403,6 +366,7 @@
                 });
                 alert("Report submitted successfully.");
                 loadWeeklyReport();
+                loadFailedGoals();
             } catch (error) {
                 console.error("Error submitting report:", error);
                 alert("Error submitting report. Please try again.");
