@@ -418,47 +418,46 @@
             }
         }
         async function submitUnfairVotes() {
-            try {
-                const checkboxes = document.querySelectorAll('.unfair-vote:checked:not([disabled])');
-                const batch = db.batch();
-                
-                for (const checkbox of checkboxes) {
-                    const assignmentId = checkbox.dataset.assignmentId;
-                    
-                    // Add vote
-                    const voteRef = db.collection("punishmentVotes").doc();
-                    batch.set(voteRef, {
-                        assignmentId,
-                        userId: currentUser,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                    
-                    // Check if majority reached
-                    const votesSnapshot = await db.collection("punishmentVotes")
-                        .where("assignmentId", "==", assignmentId)
-                        .get();
-                    
-                    const usersSnapshot = await db.collection("users").get();
-                    const totalUsers = usersSnapshot.size;
-                    
-                    if (votesSnapshot.size + 1 > totalUsers / 2) {
-                        // Majority reached, reset punishment
-                        const assignmentRef = db.collection("punishmentAssignments").doc(assignmentId);
-                        batch.update(assignmentRef, {
-                            punishment: "",
-                            votes: 0
-                        });
-                    }
-                }
+          try {
+            const checkboxes = document.querySelectorAll('.unfair-vote:checked:not([disabled])');
+            const batch = db.batch();
         
-                await batch.commit();
-                alert("Votes submitted successfully.");
-                loadPunishmentVotes();
-                
-            } catch (error) {
-                console.error("Error submitting votes:", error);
-                alert("Error submitting votes. Please try again.");
+            for (const checkbox of checkboxes) {
+              const assignmentId = checkbox.dataset.assignmentId;
+        
+              // Add vote
+              const voteRef = db.collection("punishmentVotes").doc();
+              batch.set(voteRef, {
+                assignmentId,
+                userId: currentUser,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+              });
+        
+              // Check if majority reached
+              const votesSnapshot = await db.collection("punishmentVotes")
+                .where("assignmentId", "==", assignmentId)
+                .get();
+              const totalVotes = votesSnapshot.size;
+        
+              const usersSnapshot = await db.collection("users").get();
+              const totalUsers = usersSnapshot.size;
+        
+              if (totalVotes > totalUsers / 2) {
+                // Majority reached, reset punishment
+                const assignmentRef = db.collection("punishmentAssignments").doc(assignmentId);
+                batch.update(assignmentRef, {
+                  punishment: ""
+                });
+              }
             }
+        
+            await batch.commit();
+            alert("Votes submitted successfully.");
+            loadPunishmentVotes();
+          } catch (error) {
+            console.error("Error submitting votes:", error);
+            alert("Error submitting votes. Please try again.");
+          }
         }
 
         // Change user password
